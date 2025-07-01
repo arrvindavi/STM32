@@ -110,64 +110,32 @@ int main(void)
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
+	while(1){
 
-	//DEBUG
-	int len = snprintf((char*) tx_buffer, sizeof(tx_buffer),
-			"$%d,%d,%d,%d,%d\r\n", value[0], value[1], value[2], value[3],
-			value[4]);
+	    int len = snprintf((char*) tx_buffer, sizeof(tx_buffer),
+	        "$%d,%d,%d,%d,%d\r\n", value[0], value[1], value[2], value[3], value[4]);
+	    HAL_UART_Transmit_IT(&huart2, tx_buffer, len);
 
-	HAL_UART_Transmit_IT(&huart2, tx_buffer, len);
+	    // PAN movement PWM
+	    uint32_t period = (HAL_RCC_GetPCLK1Freq() * 2 / (htim1.Init.Prescaler + 1)) / (value[1] * 2);
+	    __HAL_TIM_SET_AUTORELOAD(&htim1, period - 1);
+	    __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, (period - 1) / 2);
+	    HAL_GPIO_WritePin(GPIOA, GPIO_PIN_9, value[0]);
 
-	//		int count = __HAL_TIM_GET_COUNTER(&htim4);
-	//		if (count != prevCount) {
-	//			sprintf(uartMsg, "Encoder: %u\r\n", count);
-	//			HAL_UART_Transmit(&huart4, (uint8_t*) uartMsg, strlen(uartMsg),
-	//			HAL_MAX_DELAY);
-	//			prevCount = count;
-	//
+	    // LINEAR movement
+	    __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_1, value[3]);
 
-	// PAN movement PWM (TIM10)
-	uint32_t period = (HAL_RCC_GetPCLK1Freq() * 2 / (htim1.Init.Prescaler + 1))
-			/ (value[1] * 2);
-	__HAL_TIM_SET_AUTORELOAD(&htim1, period - 1);
-	__HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, (period - 1) / 2);
-	HAL_GPIO_WritePin(GPIOA, GPIO_PIN_9, value[0]);
+	    // CYTRON direction
+	    HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, (value[2] == 0) ? GPIO_PIN_SET : GPIO_PIN_RESET);
 
-	// LINEAR movement PWM (TIM11)
-	__HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_1, value[3]);
+	    // Servo PWM
+	    if (value[4] > 180) value[4] = 180;
+	    uint16_t pulse = 100 + ((uint32_t)value[4] * 100) / 180;
+	    __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_1, pulse);
 
-	//CYTRON
-	if (value[2] == 0) {
-				HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_SET);
-			} else {
-				HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_RESET);
-			}
-	// VNH5019 driver control
-//	if (value[3] > 0) {
-//		if (value[2] == 0) {
-//			HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_SET);
-//			HAL_GPIO_WritePin(GPIOA, GPIO_PIN_5, GPIO_PIN_SET);
-//			HAL_GPIO_WritePin(GPIOF, GPIO_PIN_4, GPIO_PIN_RESET);
-//			HAL_GPIO_WritePin(GPIOF, GPIO_PIN_5, GPIO_PIN_SET);
-//		} else {
-//			HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_SET);
-//			HAL_GPIO_WritePin(GPIOA, GPIO_PIN_5, GPIO_PIN_SET);
-//			HAL_GPIO_WritePin(GPIOF, GPIO_PIN_4, GPIO_PIN_SET);
-//			HAL_GPIO_WritePin(GPIOF, GPIO_PIN_5, GPIO_PIN_RESET);
-//		}
-//	} else {
-//		HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_RESET);
-//		HAL_GPIO_WritePin(GPIOA, GPIO_PIN_5, GPIO_PIN_RESET);
-//	}
+	    HAL_Delay(50); // adjust as needed
 
-	// SERVO trigger (TIM13)
-	if (value[4] > 180)
-		value[4] = 180;
-
-	// Map 0–180° to 1000–2000 (pulse width in microseconds)
-	uint16_t pulse = 100 + ((uint32_t) value[4] * 100) / 180;
-
-	__HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_1, pulse);
+	}
 
     /* USER CODE END WHILE */
 
@@ -306,7 +274,7 @@ static void MX_TIM1_Init(void)
   /* USER CODE BEGIN TIM1_Init 2 */
   /* USER CODE END TIM1_Init 2 */
   HAL_TIM_MspPostInit(&htim1);
-
+  HAL_UART_Receive_IT(&huart1, &rx_data, 1);
 }
 
 /**
